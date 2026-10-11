@@ -45,16 +45,44 @@ export default Plugin.define({
 
     const busy = () => state.recording || state.working;
 
-    const start = () => {
+    /**
+     * Asks for a microphone when none is chosen.
+     *
+     * Recording without a device cannot work, and making the user discover
+     * /voice-mic first is a dead end for anyone who just hit the hotkey. This
+     * returns the chosen device, or undefined when the dialog is dismissed.
+     */
+    const chooseMicrophone = async (): Promise<string | undefined> => {
+      const devices = await listDevices(cfg.ffmpeg);
+      if (devices.length === 0) {
+        toast(
+          "No input devices found. Install ffmpeg with DirectShow support, and check Windows Privacy → Microphone.",
+          "warning",
+        );
+        return undefined;
+      }
+      const picked = await context.ui.dialog.select({
+        title: "Select microphone",
+        options: devices.map((d) => ({ title: d.label, value: d.name })),
+        search: (query, options) =>
+          options.filter((o) => o.title.toLowerCase().includes(query.toLowerCase())),
+      });
+      if (!picked) return undefined;
+      await save((d) => {
+        d.mic = picked;
+      });
+      toast(`Mic: ${picked}`);
+      return picked;
+    };
+
+    const start = async () => {
       if (busy()) {
         toast("Busy, please wait…", "warning");
         return;
       }
-      const mic = settings.mic;
-      if (!mic) {
-        toast("Pick a microphone first: /voice-mic", "warning");
-        return;
-      }
+      // No device yet? Open the picker instead of refusing to record.
+      const mic = settings.mic || (await chooseMicrophone());
+      if (!mic) return;
       try {
         recorder = startRecording({
           ffmpeg: cfg.ffmpeg,
@@ -147,7 +175,10 @@ export default Plugin.define({
       }
     };
 
-    const toggle = () => (state.recording ? void stopAndTranscribe(false) : start());
+    const toggle = async (): Promise<void> => {
+      if (state.recording) await stopAndTranscribe(false);
+      else await start();
+    };
 
     const backend = server.backend;
 
@@ -172,9 +203,9 @@ export default Plugin.define({
           group: "Voice",
           palette: true,
           slash: { name: "voice-submit" },
-          run: () => {
-            if (state.recording) void stopAndTranscribe(true);
-            else start();
+          run: async () => {
+            if (state.recording) await stopAndTranscribe(true);
+            else await start();
           },
         },
         {
@@ -202,25 +233,7 @@ export default Plugin.define({
           palette: true,
           slash: { name: "voice-mic" },
           run: async () => {
-            const devices = await listDevices(cfg.ffmpeg);
-            if (devices.length === 0) {
-              toast(
-                "No input devices found. Install ffmpeg with DirectShow support and check Windows privacy settings.",
-                "warning",
-              );
-              return;
-            }
-            const picked = await context.ui.dialog.select({
-              title: "Select microphone",
-              options: devices.map((d) => ({ title: d.label, value: d.name })),
-              search: (query, options) =>
-                options.filter((o) => o.title.toLowerCase().includes(query.toLowerCase())),
-            });
-            if (!picked) return;
-            await save((d) => {
-              d.mic = picked;
-            });
-            toast(`Mic: ${picked}`);
+            await chooseMicrophone();
           },
         },
         {
