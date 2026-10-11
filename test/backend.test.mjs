@@ -1,6 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { detectBackend, findRuntime, hasCuda, hasVulkan } from "../lib/backend.ts";
+
+test("an explicit directory is taken as the runtime root", () => {
+  // Regression: a directory path used to be treated as a file path, which
+  // silently resolved one level too high and then reported the server as
+  // missing even though it was sitting right there.
+  const dir = path.dirname(findRuntime().cli);
+  const rt = findRuntime(dir);
+  assert.equal(rt.root, dir);
+  assert.equal(rt.server, path.join(dir, "whisper-server.exe"));
+  assert.ok(fs.existsSync(rt.server), "the resolved server must exist on disk");
+});
+
+test("an explicit binary path resolves to its folder", () => {
+  const rt = findRuntime();
+  const fromExe = findRuntime(rt.cli);
+  assert.equal(fromExe.root, rt.root);
+  assert.equal(fromExe.server, rt.server);
+});
 
 test("finds a runtime under LOCALAPPDATA", () => {
   const rt = findRuntime();

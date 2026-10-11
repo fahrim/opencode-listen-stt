@@ -55,12 +55,21 @@ export function runtimeCandidates(): RuntimePaths[] {
   return out;
 }
 
+/**
+ * Resolves the whisper.cpp root. `custom` may be the folder itself, a path to
+ * `whisper-cli.exe`, or the directory holding it — normalising here means
+ * callers do not each have to get it right.
+ */
 export function findRuntime(custom?: string): RuntimePaths | undefined {
   if (custom) {
-    const base = path.isAbsolute(custom) ? custom : path.join(custom, "whisper-cli.exe");
-    const root = path.dirname(base);
-    const cli = base.toLowerCase().endsWith(".exe") ? base : path.join(root, "whisper-cli.exe");
-    return { root, cli, server: path.join(root, "whisper-server.exe") };
+    const direct = path.isAbsolute(custom) ? custom : path.join(custom, "whisper-cli.exe");
+    // A directory: the binaries sit inside it.
+    if (!direct.toLowerCase().endsWith(".exe")) {
+      return { root: custom, cli: path.join(custom, "whisper-cli.exe"), server: path.join(custom, "whisper-server.exe") };
+    }
+    // An explicit binary path: its folder is the root.
+    const root = path.dirname(direct);
+    return { root, cli: direct, server: path.join(root, "whisper-server.exe") };
   }
   for (const c of runtimeCandidates()) {
     if (fs.existsSync(c.cli)) return c;
