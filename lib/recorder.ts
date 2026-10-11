@@ -13,10 +13,22 @@ export interface AudioDevice {
   readonly label: string;
 }
 
-/** Strips DirectShow's `audio="..."` wrapper to get a bare device name. */
+/**
+ * Strips a DirectShow device line down to the bare device name.
+ *
+ * ffmpeg lists devices as `"Mikrofon (Realtek(R) Audio)" (audio)` — the name
+ * comes first, in quotes, and the kind follows in parentheses. The older
+ * `audio="..."` form is also accepted because both appear in the wild.
+ */
 export function parseDeviceName(raw: string): string {
-  const m = /audio="([^"]+)"/.exec(raw);
-  return (m?.[1] ?? raw).trim();
+  // ffmpeg prefixes each line with `[dshow @ 000001c0...] `.
+  const line = raw.replace(/^\s*\[[^\]]+\]\s*/, "").trim();
+  const trailing = /^"([^"]+)"\s*\((video|audio)\)$/.exec(line);
+  if (trailing) return trailing[1].trim();
+  const wrapped = /audio="([^"]+)"/.exec(line);
+  if (wrapped) return wrapped[1].trim();
+  const unquoted = /^"?([^"]+?)"?\s*\((?:video|audio)\)$/.exec(line);
+  return (unquoted?.[1] ?? line).trim();
 }
 
 /** Pulls audio input devices out of `ffmpeg -list_devices` output. */
@@ -24,11 +36,16 @@ export function parseDevices(stderr: string): AudioDevice[] {
   const out: AudioDevice[] = [];
   const seen = new Set<string>();
   for (const line of stderr.split(/\r?\n/)) {
-    if (!/audio=/i.test(line)) continue;
+    // Device lines carry the kind in parentheses; the "Alternative name" lines
+    // that follow each device must not be mistaken for devices themselves.
+    if (!/"[^"]*"\s*\((?:audio|video)\)/.test(line)) continue;
+    if (/alternative name/i.test(line)) continue;
+    // Only audio inputs are usable for dictation.
+    if (!/"[^"]*"\s*\(audio\)/.test(line)) continue;
     const name = parseDeviceName(line);
     if (!name || seen.has(name)) continue;
-    // The "none"/virtual entries DirectShow always lists are not microphones.
-    if (/^(none|virtual|screen|wasapi loopback|audio input capture)/i.test(name)) continue;
+    // Virtual and loopback entries DirectShow always lists are not microphones.
+    if (/^(none|virtual|screen|wasapi loopback|audio input capture|virtual-audio-capturer)/i.test(name)) continue;
     seen.add(name);
     out.push({ name, label: name });
   }

@@ -53,22 +53,38 @@ test("marks every language except auto as worth pinning", () => {
   assert.equal(shouldPinLanguage(""), false);
 });
 
-test("parses DirectShow device lines", () => {
-  const stderr = [
-    "[dshow @ 0000] DirectShow video devices (some may not be listed correctly)",
-    'foo (2) (video)', 'audio="Headset Microphone" (audio)',
-    'audio="Speakers" (audio)',
-    'audio="none" (audio)',
-  ].join("\n");
-  const devices = parseDevices(stderr);
+// Captured from `ffmpeg -list_devices true -f dshow -i dummy` on Windows 11.
+// The real format puts the quoted name first and the kind last, which is the
+// opposite of the audio="..." form this test originally assumed.
+const REAL_FFMPEG_OUTPUT = [
+  '[dshow @ 000001c0b01b5780] "Iriun Webcam" (video)',
+  '[dshow @ 000001c0b01b5780]   Alternative name "@device_pnp_\\\\root#camera#0000#{65e8773d-8f56-11d0-a3b9-00a0c9223196}"',
+  '[dshow @ 000001c0b01b5780] "Nikon Webcam Utility" (none)',
+  '[dshow @ 000001c0b01b5780] "OBS Virtual Camera" (video)',
+  '[dshow @ 000001c0b01b5780] "Mikrofon (8- FUJIN)" (audio)',
+  '[dshow @ 000001c0b01b5780]   Alternative name "@device_cm_{33D9A762}\\wave_{CD6DFF92}"',
+  '[dshow @ 000001c0b01b5780] "virtual-audio-capturer" (audio)',
+  '[dshow @ 000001c0b01b5780] "Mikrofon (Realtek(R) Audio)" (audio)',
+  '[dshow @ 000001c0b01b5780] "Mikrofon (Iriun Webcam)" (audio)',
+  "Error opening input file dummy.",
+].join("\n");
+
+test("parses the real ffmpeg device listing", () => {
+  const devices = parseDevices(REAL_FFMPEG_OUTPUT);
   assert.deepEqual(
     devices.map((d) => d.name),
-    ["Headset Microphone", "Speakers"],
-    "the virtual 'none' device must be filtered out",
+    ["Mikrofon (8- FUJIN)", "Mikrofon (Realtek(R) Audio)", "Mikrofon (Iriun Webcam)"],
+    "only audio inputs, no video, no alternative-name lines, no virtual capture",
   );
 });
 
-test("extracts a bare device name", () => {
+test("also accepts the audio=\"...\" form", () => {
+  const devices = parseDevices('foo (2) (video)  audio="Headset Microphone" (audio)');
+  assert.deepEqual(devices.map((d) => d.name), ["Headset Microphone"]);
+});
+
+test("parses the real quoted-name form", () => {
+  assert.equal(parseDeviceName('[dshow @ 0000] "Mikrofon (Realtek(R) Audio)" (audio)'), "Mikrofon (Realtek(R) Audio)");
   assert.equal(parseDeviceName('audio="Microphone (2- USB)" (audio)'), "Microphone (2- USB)");
 });
 
