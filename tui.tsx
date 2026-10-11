@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
-import { createSignal, onCleanup, Show } from "solid-js";
+import { createSignal } from "solid-js";
 import { configFromOptions, LANGUAGES, type Voice99Config } from "./lib/config.ts";
 import { WhisperServer } from "./lib/server.ts";
 import { listDevices, normalizeGain, pcmToWav, startRecording, type RecorderHandle } from "./lib/recorder.ts";
@@ -348,11 +348,11 @@ export default Plugin.define({
     }));
 
     // ---- recording UI ----------------------------------------------------
-    // Above the composer: live level meter and elapsed time.
+    // On the row directly under the answer, above the composer: live level
+    // meter and elapsed time.
     //
-    // A bare <Show> renders nothing when idle, which collapses the slot to
-    // zero height; the reference plugin returns an explicit zero-height box
-    // instead, and that keeps the row stable while the phase changes.
+    // Written as explicit conditionals rather than <Show>: the slot renderer
+    // runs outside a reactive owner, so <Show> never updates here.
     const releaseMeter = context.ui.slot({
       append: "session.composer.top",
       render: () =>
