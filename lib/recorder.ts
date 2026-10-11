@@ -76,6 +76,12 @@ export interface RecorderHandle {
   bytes(): number;
   /** ffmpeg's stderr, for diagnosing a device that will not open. */
   stderr(): string;
+  /**
+   * Latest RMS level, 0..1, averaged over recent samples. Drives the waveform
+   * in the composer footer; computed from the stream we already receive so it
+   * costs nothing extra.
+   */
+  level(): number;
   stop(): Promise<Buffer>;
 }
 
@@ -96,17 +102,18 @@ export function startRecording(opts: {
     "error",
     "-f",
     "dshow",
-    // Without this ffmpeg fails fast when the device name is slightly off.
-    "-thread_queue_size",
-    "1024",
+    // A small audio buffer is what keeps the capture to the microphone. The
+    // default (and larger values such as -thread_queue_size) let system
+    // audio bleed into the stream, so the transcript picks up whatever the
+    // speakers are playing instead of the person talking.
+    "-audio_buffer_size",
+    "50",
     "-i",
     `audio=${opts.mic}`,
-    "-t",
-    String(opts.maxSeconds),
-    "-ar",
-    String(opts.sampleRate),
     "-ac",
     "1",
+    "-ar",
+    String(opts.sampleRate),
     "-f",
     "s16le",
     "-",
@@ -115,6 +122,7 @@ export function startRecording(opts: {
   const child = spawn(opts.ffmpeg, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const chunks: Buffer[] = [];
   let total = 0;
+  let rms = 0;
   let stderr = "";
   child.stderr?.on("data", (c: Buffer) => {
     stderr += c.toString();
@@ -122,6 +130,9 @@ export function startRecording(opts: {
   child.stdout?.on("data", (c: Buffer) => {
     total += c.length;
     chunks.push(Buffer.from(c));
+    rms = Math.sqrt(
+      c.reduce((sum, v) => sum + v * v, 0) / Math.max(1, c.length / 2),
+    ) / 32768;
   });
 
   // ffmpeg needs a moment to open the device before it produces samples.
@@ -138,35 +149,46 @@ export function startRecording(opts: {
   });
   ready = started;
 
+  const stopNow = (): Promise<Buffer> =>
+    new Promise<Buffer>((resolve) => {
+      void (async () => {
+        if (autoStop) clearTimeout(autoStop);
+        // Give the device a moment to open, bounded so a dead mic still
+        // returns rather than hanging the command.
+        await Promise.race([ready, new Promise((r) => setTimeout(r, 1200))]);
+        child.once("close", () => resolve(Buffer.concat(chunks)));
+        try {
+          child.kill("SIGINT");
+        } catch {
+          child.kill();
+        }
+        setTimeout(() => {
+          try {
+            child.kill();
+          } catch {
+            // already gone
+          }
+          resolve(Buffer.concat(chunks));
+        }, 2000);
+      })();
+    });
+
+  // ffmpeg's own -t ends the stream without us finalising the WAV header, so
+  // the recording cap is enforced here instead.
+  let autoStop: ReturnType<typeof setTimeout> | null = null;
+  if (opts.maxSeconds > 0) {
+    autoStop = setTimeout(() => {
+      void stopNow();
+    }, opts.maxSeconds * 1000);
+    autoStop.unref?.();
+  }
+
   return {
     process: child,
     bytes: () => total,
-    stop: () =>
-      new Promise<Buffer>((resolve) => {
-        void (async () => {
-          // Give the device a moment to open, bounded so a dead mic still
-          // returns rather than hanging the command.
-          await Promise.race([
-            ready,
-            new Promise((r) => setTimeout(r, 1200)),
-          ]);
-          child.once("close", () => resolve(Buffer.concat(chunks)));
-          try {
-            child.kill("SIGINT");
-          } catch {
-            child.kill();
-          }
-          setTimeout(() => {
-            try {
-              child.kill();
-            } catch {
-              // already gone
-            }
-            resolve(Buffer.concat(chunks));
-          }, 2000);
-        })();
-      }),
+    level: () => rms,
     stderr: () => stderr,
+    stop: stopNow,
   };
 }
 

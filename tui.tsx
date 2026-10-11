@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
+import { createSignal, onCleanup, Show } from "solid-js";
 import { configFromOptions, LANGUAGES, type Voice99Config } from "./lib/config.ts";
 import { WhisperServer } from "./lib/server.ts";
 import { listDevices, pcmToWav, startRecording, type RecorderHandle } from "./lib/recorder.ts";
@@ -37,6 +38,11 @@ export default Plugin.define({
       { initial: { recording: false, working: false } },
     );
 
+    // Waveform and elapsed time, refreshed while recording. Kept outside the
+    // durable store because they change every tick.
+    const [levels, setLevels] = createSignal<number[]>([]);
+    const [elapsed, setElapsed] = createSignal(0);
+
     const toast = (message: string, variant: "info" | "success" | "warning" | "error" = "info") =>
       context.ui.toast.show({ message, variant, duration: 3000 });
 
@@ -44,6 +50,38 @@ export default Plugin.define({
     let recorder: RecorderHandle | null = null;
 
     const busy = () => state.recording || state.working;
+
+    // ---- recording meter -------------------------------------------------
+    const BARS = 28;
+    const BARS_GLYPH = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+    let meter: ReturnType<typeof setInterval> | null = null;
+
+    const bar = (level: number): string => {
+      const i = Math.max(0, Math.min(BARS_GLYPH.length - 1, Math.round(level * BARS_GLYPH.length)));
+      return BARS_GLYPH[i];
+    };
+
+    const formatElapsed = (seconds: number): string =>
+      `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
+    const stopMeter = (): void => {
+      if (meter) clearInterval(meter);
+      meter = null;
+      setLevels([]);
+      setElapsed(0);
+    };
+
+    function startMeter(): void {
+      if (meter) clearInterval(meter);
+      const startedAt = Date.now();
+      meter = setInterval(() => {
+        const level = recorder?.level() ?? 0;
+        // Squared so quiet speech still moves the bars; a linear RMS sits
+        // near zero and looks like a dead microphone.
+        setLevels((prev) => [...prev.slice(-(BARS - 1)), level * level]);
+        setElapsed((Date.now() - startedAt) / 1000);
+      }, 60);
+    }
 
     /**
      * Asks for a microphone when none is chosen.
@@ -94,6 +132,7 @@ export default Plugin.define({
         setState((d) => {
           d.recording = true;
         });
+        startMeter();
         toast(`Recording… press ${settings.hotkey} again to stop`);
       } catch (err) {
         toast(`Cannot start recording: ${err instanceof Error ? err.message : String(err)}`, "error");
