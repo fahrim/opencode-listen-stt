@@ -194,6 +194,9 @@ export default Plugin.define({
           palette: true,
           slash: { name: "voice-record" },
           suggested: true,
+          // Without this the command exists in the palette but no key reaches
+          // it, which is why the hotkey appeared to do nothing.
+          bind: settings.hotkey,
           run: toggle,
         },
         {
