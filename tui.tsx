@@ -182,6 +182,7 @@ export default Plugin.define({
       } catch (err) {
         toast(`STT failed: ${err instanceof Error ? err.message : String(err)}`, "error");
       } finally {
+        stopMeter();
         setState((d) => {
           d.working = false;
         });
@@ -259,8 +260,9 @@ export default Plugin.define({
           slash: { name: "voice-cancel" },
           enabled: () => state.recording,
           run: () => {
-            recorder?.stop();
+            void recorder?.stop();
             recorder = null;
+            stopMeter();
             setState((d) => {
               d.recording = false;
             });
@@ -341,8 +343,46 @@ export default Plugin.define({
       ],
     }));
 
+    // ---- recording UI ----------------------------------------------------
+    // Above the composer: live level meter and elapsed time.
+    const releaseMeter = context.ui.slot({
+      append: "session.composer.top",
+      render: () => (
+        <Show when={state.recording}>
+          <box flexDirection="row" gap={1} paddingLeft={1}>
+            <text fg="#e06c75">● REC</text>
+            <text fg={context.theme.current.text.base}>{formatElapsed(elapsed())}</text>
+            <text fg={context.theme.current.text.base}>{levels().map(bar).join("")}</text>
+          </box>
+        </Show>
+      ),
+    });
+
+    // In the prompt footer: the three controls, clickable.
+    const releaseFooter = context.ui.slot({
+      append: "prompt.footer",
+      render: () => (
+        <Show when={state.recording}>
+          <box flexDirection="row" gap={2} paddingLeft={1}>
+            <text fg="#e5c07b" onMouseUp={() => void stopAndTranscribe(false)}>
+              ⏸ insert
+            </text>
+            <text fg="#7aa2f7" onMouseUp={() => void stopAndTranscribe(true)}>
+              ■ send
+            </text>
+            <text fg="#e06c75" onMouseUp={() => void toggle()}>
+              ✕ cancel
+            </text>
+          </box>
+        </Show>
+      ),
+    });
+
     return () => {
-      recorder?.stop();
+      releaseMeter();
+      releaseFooter();
+      stopMeter();
+      void recorder?.stop();
       recorder = null;
       void server.dispose();
     };
