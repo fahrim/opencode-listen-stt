@@ -1,0 +1,51 @@
+{
+  "name": "opencode-voice-99",
+  "version": "0.1.0",
+  "description": "Offline voice dictation for OpenCode V2 on Windows. whisper.cpp with 99 languages, GPU-accelerated on NVIDIA (CUDA), AMD and Intel (Vulkan).",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-tui",
+    "voice",
+    "dictation",
+    "speech-to-text",
+    "stt",
+    "whisper",
+    "whisper-cpp",
+    "vulkan",
+    "cuda",
+    "turkish",
+    "offline"
+  ],
+  "oc-plugin": [
+    "tui"
+  ],
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.tsx"
+  },
+  "files": [
+    "index.ts",
+    "tui.tsx",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@opencode/client": "2.0.26",
+    "@opencode/plugin": "2.0.26",
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "solid-js": ">=1.9.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "opencode": ">=2.0.0"
+  }
+}
