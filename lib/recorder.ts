@@ -74,6 +74,8 @@ export interface RecorderHandle {
   readonly process: ChildProcess;
   /** Bytes written so far, for a duration estimate. */
   bytes(): number;
+  /** ffmpeg's stderr, for diagnosing a device that will not open. */
+  stderr(): string;
   stop(): Promise<Buffer>;
 }
 
@@ -94,6 +96,9 @@ export function startRecording(opts: {
     "error",
     "-f",
     "dshow",
+    // Without this ffmpeg fails fast when the device name is slightly off.
+    "-thread_queue_size",
+    "1024",
     "-i",
     `audio=${opts.mic}`,
     "-t",
@@ -110,32 +115,58 @@ export function startRecording(opts: {
   const child = spawn(opts.ffmpeg, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const chunks: Buffer[] = [];
   let total = 0;
+  let stderr = "";
+  child.stderr?.on("data", (c: Buffer) => {
+    stderr += c.toString();
+  });
   child.stdout?.on("data", (c: Buffer) => {
     total += c.length;
     chunks.push(Buffer.from(c));
   });
+
+  // ffmpeg needs a moment to open the device before it produces samples.
+  // Stopping it in the same tick yields an empty capture, which looks
+  // identical to a silent microphone and is very hard to debug later.
+  let ready: Promise<void>;
+  const started = new Promise<void>((resolve) => {
+    const check = (): void => {
+      if (total > 0) resolve();
+      else if (child.exitCode !== null || stderr) resolve();
+      else setTimeout(check, 60);
+    };
+    setTimeout(check, 60);
+  });
+  ready = started;
 
   return {
     process: child,
     bytes: () => total,
     stop: () =>
       new Promise<Buffer>((resolve) => {
-        // ffmpeg writes a valid stream header on SIGINT; give it a moment.
-        child.once("close", () => resolve(Buffer.concat(chunks)));
-        try {
-          child.kill("SIGINT");
-        } catch {
-          child.kill();
-        }
-        setTimeout(() => {
+        void (async () => {
+          // Give the device a moment to open, bounded so a dead mic still
+          // returns rather than hanging the command.
+          await Promise.race([
+            ready,
+            new Promise((r) => setTimeout(r, 1200)),
+          ]);
+          child.once("close", () => resolve(Buffer.concat(chunks)));
           try {
-            child.kill();
+            child.kill("SIGINT");
           } catch {
-            // already gone
+            child.kill();
           }
-          resolve(Buffer.concat(chunks));
-        }, 2000);
+          setTimeout(() => {
+            try {
+              child.kill();
+            } catch {
+              // already gone
+            }
+            resolve(Buffer.concat(chunks));
+          }, 2000);
+        })();
       }),
+    stderr: () => stderr,
   };
 }
 
