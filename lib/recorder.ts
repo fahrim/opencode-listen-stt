@@ -77,9 +77,9 @@ export interface RecorderHandle {
   /** ffmpeg's stderr, for diagnosing a device that will not open. */
   stderr(): string;
   /**
-   * Latest RMS level, 0..1, averaged over recent samples. Drives the waveform
-   * in the composer footer; computed from the stream we already receive so it
-   * costs nothing extra.
+   * Loudness held from recent chunks, 0..1. Drives the waveform in the
+   * composer footer; computed from the stream we already receive so it costs
+   * nothing extra.
    */
   level(): number;
   stop(): Promise<Buffer>;
@@ -130,9 +130,11 @@ export function startRecording(opts: {
   child.stdout?.on("data", (c: Buffer) => {
     total += c.length;
     chunks.push(Buffer.from(c));
-    rms = Math.sqrt(
-      c.reduce((sum, v) => sum + v * v, 0) / Math.max(1, c.length / 2),
-    ) / 32768;
+    // Peak hold with decay. ffmpeg hands over chunks whenever its buffer
+    // happens to flush, so the raw per-chunk level jumps around and a gap
+    // between chunks would blank the meter for a frame.
+    const now = pcmRms(c);
+    rms = Math.max(now, rms * 0.65);
   });
 
   // ffmpeg needs a moment to open the device before it produces samples.
@@ -215,6 +217,27 @@ export function normalizeGain(pcm: Buffer, target = 8000, maxFactor = 40): numbe
   if (factor <= 1.05) return 1;
   applyGain(pcm, factor);
   return factor;
+}
+
+/**
+ * Root-mean-square amplitude of signed 16-bit little-endian PCM, 0..1.
+ *
+ * The samples have to be read as signed 16-bit values. Treating the buffer as
+ * raw unsigned bytes looks like it works and quietly does not: the low byte of
+ * every sample is spread across 0..255 whatever the amplitude, so its
+ * contribution to the mean square barely moves when someone speaks. The meter
+ * then sits at a near-constant level and the waveform looks dead on a
+ * perfectly healthy microphone.
+ */
+export function pcmRms(pcm: Buffer): number {
+  const samples = pcm.length >> 1;
+  if (samples === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < pcm.length - 1; i += 2) {
+    const v = pcm.readInt16LE(i);
+    sum += v * v;
+  }
+  return Math.sqrt(sum / samples) / 32768;
 }
 
 /** In-place PCM scaling with clamping. */

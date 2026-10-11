@@ -61,6 +61,14 @@ export default Plugin.define({
       return BARS_GLYPH[i];
     };
 
+    /**
+     * Speech sits low on a 0..1 RMS scale - normal talking measures around
+     * 0.02..0.1 - so the raw value would leave every bar on the floor. The
+     * square root spreads that into a usable range while silence still reads
+     * as a flat line rather than noise.
+     */
+    const scale = (level: number): number => Math.min(1, Math.sqrt(level) * 2);
+
     const formatElapsed = (seconds: number): string =>
       `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
@@ -76,9 +84,7 @@ export default Plugin.define({
       const startedAt = Date.now();
       meter = setInterval(() => {
         const level = recorder?.level() ?? 0;
-        // Squared so quiet speech still moves the bars; a linear RMS sits
-        // near zero and looks like a dead microphone.
-        setLevels((prev) => [...prev.slice(-(BARS - 1)), level * level]);
+        setLevels((prev) => [...prev.slice(-(BARS - 1)), scale(level)]);
         setElapsed((Date.now() - startedAt) / 1000);
       }, 60);
     }

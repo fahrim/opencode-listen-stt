@@ -4,7 +4,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fromRecord, shouldPinLanguage } from "../lib/config.ts";
-import { pcmToWav, parseDeviceName, parseDevices } from "../lib/recorder.ts";
+import { pcmRms, pcmToWav, parseDeviceName, parseDevices } from "../lib/recorder.ts";
+
+/** Builds signed 16-bit little-endian PCM holding a sine of `amplitude`. */
+function sinePcm(amplitude, samples = 512) {
+  const buf = Buffer.alloc(samples * 2);
+  for (let i = 0; i < samples; i++) {
+    buf.writeInt16LE(Math.round(amplitude * Math.sin((2 * Math.PI * i) / 32)), i * 2);
+  }
+  return buf;
+}
 
 function withConfig(contents, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "v99-"));
@@ -20,6 +29,36 @@ function withConfig(contents, fn) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
+
+test("meter level tracks loudness instead of sitting flat", () => {
+  const quiet = pcmRms(sinePcm(400));
+  const normal = pcmRms(sinePcm(4000));
+  const loud = pcmRms(sinePcm(20000));
+
+  // The bug this guards against summed raw bytes rather than signed 16-bit
+  // samples, which returned nearly the same number for all three and left the
+  // waveform looking like a dead microphone.
+  assert.ok(
+    normal > quiet * 4,
+    `a 10x louder signal must read clearly higher (quiet ${quiet}, normal ${normal})`,
+  );
+  assert.ok(
+    loud > normal * 4,
+    `a 5x louder signal must read clearly higher (normal ${normal}, loud ${loud})`,
+  );
+  assert.ok(loud <= 1, "level must stay inside 0..1");
+});
+
+test("meter level is zero for silence and empty buffers", () => {
+  assert.equal(pcmRms(Buffer.alloc(4096)), 0);
+  assert.equal(pcmRms(Buffer.alloc(0)), 0);
+});
+
+test("meter level matches the amplitude it was given", () => {
+  // A sine's RMS is amplitude / sqrt(2); allow a little slack for rounding.
+  const level = pcmRms(sinePcm(16000));
+  assert.ok(level > 0.34 && level < 0.37, `expected about 0.354, got ${level}`);
+});
 
 test("reads valid values from the settings file", () => {
   withConfig(
