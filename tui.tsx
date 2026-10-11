@@ -3,7 +3,7 @@ import { Plugin } from "@opencode/plugin/tui";
 import { createSignal, onCleanup, Show } from "solid-js";
 import { configFromOptions, LANGUAGES, type Voice99Config } from "./lib/config.ts";
 import { WhisperServer } from "./lib/server.ts";
-import { listDevices, pcmToWav, startRecording, type RecorderHandle } from "./lib/recorder.ts";
+import { listDevices, normalizeGain, pcmToWav, startRecording, type RecorderHandle } from "./lib/recorder.ts";
 
 const ID = "opencode-voice-99";
 
@@ -164,10 +164,14 @@ export default Plugin.define({
         toast("Transcribing…");
         // Warm the server while the user is still releasing the key.
         await server.ensure((m) => toast(m));
+        // Quiet microphones otherwise transcribe to nothing, so scale the
+        // capture towards a level the model can actually use.
+        const gain = normalizeGain(pcm);
+        if (gain > 1) toast(`Low input level — amplified ${Math.round(gain)}x`);
         const wav = pcmToWav(pcm, cfg.sampleRate);
         const text = await server.transcribe(wav);
         if (!text) {
-          toast("No speech detected", "warning");
+          toast("No speech detected. Check your microphone level in Windows sound settings.", "warning");
           return;
         }
 
@@ -345,25 +349,33 @@ export default Plugin.define({
 
     // ---- recording UI ----------------------------------------------------
     // Above the composer: live level meter and elapsed time.
+    //
+    // A bare <Show> renders nothing when idle, which collapses the slot to
+    // zero height; the reference plugin returns an explicit zero-height box
+    // instead, and that keeps the row stable while the phase changes.
     const releaseMeter = context.ui.slot({
       append: "session.composer.top",
-      render: () => (
-        <Show when={state.recording}>
-          <box flexDirection="row" gap={1} paddingLeft={1}>
-            <text fg="#e06c75">● REC</text>
-            <text fg={context.theme.current.text.base}>{formatElapsed(elapsed())}</text>
-            <text fg={context.theme.current.text.base}>{levels().map(bar).join("")}</text>
+      render: () =>
+        state.recording ? (
+          <box height={1} flexShrink={0} flexDirection="row" paddingLeft={1} gap={1}>
+            <text fg="#e06c75">{`● REC ${formatElapsed(elapsed())}`}</text>
+            <text fg="#e06c75">{levels().map(bar).join("")}</text>
           </box>
-        </Show>
-      ),
+        ) : state.working ? (
+          <box height={1} flexShrink={0} paddingLeft={1}>
+            <text fg="#e5c07b">transcribing…</text>
+          </box>
+        ) : (
+          <box height={0} />
+        ),
     });
 
     // In the prompt footer: the three controls, clickable.
     const releaseFooter = context.ui.slot({
       append: "prompt.footer",
-      render: () => (
-        <Show when={state.recording}>
-          <box flexDirection="row" gap={2} paddingLeft={1}>
+      render: () =>
+        state.recording ? (
+          <box height={1} flexShrink={0} flexDirection="row" gap={2} paddingLeft={1}>
             <text fg="#e5c07b" onMouseUp={() => void stopAndTranscribe(false)}>
               ⏸ insert
             </text>
@@ -374,8 +386,9 @@ export default Plugin.define({
               ✕ cancel
             </text>
           </box>
-        </Show>
-      ),
+        ) : (
+          <box height={0} />
+        ),
     });
 
     return () => {

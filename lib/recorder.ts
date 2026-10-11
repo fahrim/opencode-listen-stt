@@ -94,6 +94,8 @@ export function startRecording(opts: {
   mic: string;
   sampleRate: number;
   maxSeconds: number;
+  /** Amplification applied before transcription; 1 leaves the stream alone. */
+  gain?: number;
   output: string;
 }): RecorderHandle {
   const args = [
@@ -102,10 +104,9 @@ export function startRecording(opts: {
     "error",
     "-f",
     "dshow",
-    // A small audio buffer is what keeps the capture to the microphone. The
-    // default (and larger values such as -thread_queue_size) let system
-    // audio bleed into the stream, so the transcript picks up whatever the
-    // speakers are playing instead of the person talking.
+    // A small audio buffer keeps the capture on the microphone. The default
+    // lets system audio bleed in, so the transcript becomes whatever the
+    // speakers were playing.
     "-audio_buffer_size",
     "50",
     "-i",
@@ -114,10 +115,9 @@ export function startRecording(opts: {
     "1",
     "-ar",
     String(opts.sampleRate),
-    "-f",
-    "s16le",
-    "-",
   ];
+  if ((opts.gain ?? 1) > 1) args.push("-af", `volume=${opts.gain}`);
+  args.push("-f", "s16le", "-");
 
   const child = spawn(opts.ffmpeg, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const chunks: Buffer[] = [];
@@ -190,6 +190,40 @@ export function startRecording(opts: {
     stderr: () => stderr,
     stop: stopNow,
   };
+}
+
+/**
+ * Amplifies PCM so quiet microphones reach a level the transcriber can use.
+ *
+ * Capture hardware varies enormously: some microphones deliver a healthy
+ * signal, others sit near 30/32767 and produce an empty transcript. Rather
+ * than ask the user to fix Windows mixer levels, scale towards a target peak
+ * and clamp so silence does not become noise.
+ *
+ * Returns the factor applied, so the UI can report it.
+ */
+export function normalizeGain(pcm: Buffer, target = 8000, maxFactor = 40): number {
+  let peak = 0;
+  for (let i = 0; i < pcm.length - 1; i += 2) {
+    const v = Math.abs(pcm.readInt16LE(i));
+    if (v > peak) peak = v;
+  }
+  if (peak === 0) return 1;
+  // Already healthy, or silence that must not be amplified into hiss.
+  if (peak >= target) return 1;
+  const factor = Math.min(maxFactor, target / peak);
+  if (factor <= 1.05) return 1;
+  applyGain(pcm, factor);
+  return factor;
+}
+
+/** In-place PCM scaling with clamping. */
+export function applyGain(pcm: Buffer, factor: number): void {
+  if (factor === 1) return;
+  for (let i = 0; i < pcm.length - 1; i += 2) {
+    const v = Math.max(-32768, Math.min(32767, Math.round(pcm.readInt16LE(i) * factor)));
+    pcm.writeInt16LE(v, i);
+  }
 }
 
 /** Wraps raw mono PCM in a WAV header so whisper-cli can read it. */
