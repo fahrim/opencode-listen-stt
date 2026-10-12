@@ -62,6 +62,21 @@ export default Plugin.define({
     };
 
     /**
+     * The meter at a fixed width.
+     *
+     * The bars arrive one per tick, so an unpadded meter is narrow at first and
+     * widens over the first second or two. On a right-aligned contribution that
+     * growth pushes the recording label left, which reads as the row sliding.
+     * Padding the front with the flat bar keeps the width constant from the
+     * first tick, and the signal still scrolls in from the right.
+     */
+    const meterText = (): string => {
+      const bars = levels().map(bar);
+      if (bars.length >= BARS) return bars.slice(-BARS).join("");
+      return [...Array(BARS - bars.length).fill(BARS_GLYPH[0]), ...bars].join("");
+    };
+
+    /**
      * Speech sits low on a 0..1 RMS scale - normal talking measures around
      * 0.02..0.1 - so the raw value would leave every bar on the floor. The
      * square root spreads that into a usable range while silence still reads
@@ -81,6 +96,9 @@ export default Plugin.define({
 
     function startMeter(): void {
       if (meter) clearInterval(meter);
+      // Start at the full width so the row does not re-flow on the first tick.
+      setLevels(Array(BARS).fill(0));
+      setElapsed(0);
       const startedAt = Date.now();
       meter = setInterval(() => {
         const level = recorder?.level() ?? 0;
@@ -230,6 +248,28 @@ export default Plugin.define({
       else await start();
     };
 
+    /**
+     * Stops the recorder and throws the audio away, without transcribing it.
+     *
+     * Distinct from `toggle`: while recording that finishes and inserts the
+     * text, which is the opposite of what a control labelled "cancel" should
+     * do. The palette command `/voice-cancel` always meant this; the footer
+     * button was the one wired to the wrong action.
+     */
+    const cancelRecording = (): void => {
+      if (!recorder && !state.recording) {
+        toast("Not recording", "warning");
+        return;
+      }
+      void recorder?.stop();
+      recorder = null;
+      stopMeter();
+      setState((d) => {
+        d.recording = false;
+      });
+      toast("Cancelled");
+    };
+
     const backend = server.backend;
 
     context.keymap.layer(() => ({
@@ -270,13 +310,7 @@ export default Plugin.define({
           slash: { name: "voice-cancel" },
           enabled: () => state.recording,
           run: () => {
-            void recorder?.stop();
-            recorder = null;
-            stopMeter();
-            setState((d) => {
-              d.recording = false;
-            });
-            toast("Cancelled");
+            cancelRecording();
           },
         },
         {
@@ -373,14 +407,14 @@ export default Plugin.define({
           return (
             <box height={1} flexShrink={0} flexDirection="row" gap={2} paddingLeft={1}>
               <text fg="#e06c75">{`● REC ${formatElapsed(elapsed())}`}</text>
-              <text fg="#e06c75">{levels().map(bar).join("")}</text>
+              <text fg="#e06c75">{meterText()}</text>
               <text fg="#e5c07b" onMouseUp={() => void stopAndTranscribe(false)}>
                 ⏸ insert
               </text>
               <text fg="#7aa2f7" onMouseUp={() => void stopAndTranscribe(true)}>
                 ■ send
               </text>
-              <text fg="#e06c75" onMouseUp={() => void toggle()}>
+              <text fg="#e06c75" onMouseUp={() => cancelRecording()}>
                 ✕ cancel
               </text>
             </box>
