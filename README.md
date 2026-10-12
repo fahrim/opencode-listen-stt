@@ -9,6 +9,13 @@ Offline voice dictation for [OpenCode](https://opencode.ai) **V2** on Windows. P
 
 > Not affiliated with the OpenCode team. Independent community plugin.
 
+## Voice output
+
+This plugin only listens. To hear answers read aloud — Microsoft Edge neural
+voices, free, no API key, Turkish included — see
+[opencode-speak-tts](https://github.com/fahrim/opencode-speak-tts). The two are
+independent; either one works without the other.
+
 ## Why not `opencode-voice`?
 
 Two reasons, both structural rather than fixable by configuration:
@@ -35,8 +42,8 @@ This plugin always sends the language. `/voice-language` changes it.
 ## Install
 
 ```powershell
-git clone https://github.com/fahrim/opencode-listen-stt "$env:TEMP\ov99"
-pwsh -NoProfile -File "$env:TEMP\ov99\install.ps1"
+git clone https://github.com/fahrim/opencode-listen-stt "$env:TEMP\opencode-listen-stt"
+pwsh -NoProfile -File "$env:TEMP\opencode-listen-stt\install.ps1"
 ```
 
 The installer detects your GPU and points at the right whisper.cpp build.
@@ -50,7 +57,15 @@ The installer detects your GPU and points at the right whisper.cpp build.
 
 Then re-run the installer.
 
-Restart OpenCode, run `/voice-mic` to choose an input device, and press your hotkey.
+Restart OpenCode and check that it loaded:
+
+```powershell
+opencode api get /api/plugin   # look for opencode-listen-stt, status "active"
+```
+
+Press your hotkey. If no microphone has been chosen yet it asks on the first
+press, so there is nothing to configure before you start — `/voice-mic` is only
+there for changing it later.
 
 ## Usage
 
@@ -85,16 +100,18 @@ Whisper is CPU-only upstream on Windows, so the Vulkan build comes from [whisper
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `language` | `tr` | Spoken language. `auto` is slower and wrong for Turkish. |
+| `language` | `tr` | Spoken language passed to whisper. The installer writes `tr`. With no config file at all it falls back to `auto`, which is slower and mis-reads Turkish as English. |
 | `backend` | `auto` | `auto`, `cuda`, `vulkan` or `cpu` |
-| `model` | large-v3-turbo | Any ggml model file |
+| `model` | installer download | Full path to a ggml model file. The installer writes it; delete the key and the plugin still finds the model in `models/`. |
 | `runtime` | detected | whisper.cpp folder |
+| `ffmpeg` | `ffmpeg` | ffmpeg executable, if it is not on `PATH` |
 | `port` | `8801` | Local server port |
 | `threads` | `0` | `0` means auto |
+| `sampleRate` | `16000` | Capture sample rate, in Hz |
 | `idleMinutes` | `10` | Model unload delay after the last recording |
 | `maxSeconds` | `300` | Hard cap per recording |
 | `hotkey` | `ctrl+y` | Recording shortcut |
-| `mic` | `""` | Microphone device name; empty means ask |
+| `mic` | `""` | Microphone device name; empty means ask on first use |
 
 Unknown or wrongly-typed values are ignored rather than fatal, so a typo cannot stop the plugin loading.
 
