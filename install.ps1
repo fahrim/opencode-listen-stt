@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-  Installs opencode-voice-99: the plugin, a GPU-accelerated whisper.cpp, and a model.
+  Installs opencode-listen-stt: the plugin, a GPU-accelerated whisper.cpp, and a model.
 
 .DESCRIPTION
   Picks a backend automatically - CUDA if an NVIDIA build is found, otherwise
@@ -9,7 +9,7 @@
   needs the user to know which GPU they have.
 
   The plugin itself is discovered from ~/.config/opencode/plugins, so this only
-  downloads whisper.cpp and a model into %LOCALAPPDATA%\opencode-voice-99.
+  downloads whisper.cpp and a model into %LOCALAPPDATA%\opencode-listen-stt.
 
 .PARAMETER Model
   Model file name to fetch. Default: ggml-large-v3-turbo-q5_0.bin
@@ -47,15 +47,15 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$Repo = "fahrim/opencode-voice-99"
+$Repo = "fahrim/opencode-listen-stt"
 $PluginRepo = "https://github.com/$Repo.git"
 $WhisperSource = "https://github.com/ggml-org/whisper.cpp"
 
-function Say([string]$m) { Write-Host "[voice-99] $m" }
+function Say([string]$m) { Write-Host "[listen-stt] $m" }
 function Step([string]$m) { Write-Host ""; Write-Host "== $m" }
 
 if (-not $InstallDir) {
-    $InstallDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "opencode-voice-99" } else { Join-Path $env:USERPROFILE "opencode-voice-99" }
+    $InstallDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "opencode-listen-stt" } else { Join-Path $env:USERPROFILE "opencode-listen-stt" }
 }
 if (-not $ConfigDir) {
     $xdg = $env:XDG_CONFIG_HOME
@@ -63,7 +63,7 @@ if (-not $ConfigDir) {
 }
 $runtimeDir = Join-Path $InstallDir "runtime"
 $modelsDir = Join-Path $InstallDir "models"
-$pluginDir = Join-Path $ConfigDir "plugins\opencode-voice-99"
+$pluginDir = Join-Path $ConfigDir "plugins\opencode-listen-stt"
 
 # ---- decide the backend ---------------------------------------------------
 # Based on what GPU is present, not on what the user intends to run.
@@ -114,7 +114,7 @@ if (Test-Path (Join-Path $pluginDir "tui.tsx")) {
     Say "already installed at $pluginDir"
 } else {
     New-Item -ItemType Directory -Force $pluginDir | Out-Null
-    $tmp = Join-Path $env:TEMP "opencode-voice-99-plugin"
+    $tmp = Join-Path $env:TEMP "opencode-listen-stt-plugin"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     & git clone --depth 1 $PluginRepo $tmp
     if ($LASTEXITCODE -ne 0) { Say "clone failed"; exit 1 }
@@ -176,7 +176,7 @@ if ($SkipModel) {
 # ---- config ---------------------------------------------------------------
 Step "Configuration"
 New-Item -ItemType Directory -Force $ConfigDir | Out-Null
-$configFile = Join-Path $ConfigDir "opencode-voice-99.json"
+$configFile = Join-Path $ConfigDir "opencode-listen-stt.json"
 $cfg = [ordered]@{
     ffmpeg       = "ffmpeg"
     runtime      = $runtimeDir

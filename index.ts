@@ -10,7 +10,7 @@
  * resolve packages while the server is booting.
  */
 export default {
-  id: "opencode-voice-99",
+  id: "opencode-listen-stt",
   tui: true,
   async setup() {},
 };

@@ -1,4 +1,4 @@
-# opencode-voice-99
+# opencode-listen-stt
 
 Offline voice dictation for [OpenCode](https://opencode.ai) **V2** on Windows. Press a key, talk, and the text lands in your prompt.
 
@@ -35,7 +35,7 @@ This plugin always sends the language. `/voice-language` changes it.
 ## Install
 
 ```powershell
-git clone https://github.com/fahrim/opencode-voice-99 "$env:TEMP\ov99"
+git clone https://github.com/fahrim/opencode-listen-stt "$env:TEMP\ov99"
 pwsh -NoProfile -File "$env:TEMP\ov99\install.ps1"
 ```
 
@@ -45,7 +45,7 @@ The installer detects your GPU and points at the right whisper.cpp build.
 
 ```powershell
 # from https://github.com/fahrim/whisper-vulkan-win
-# extract into %LOCALAPPDATA%\opencode-voice-99\runtime
+# extract into %LOCALAPPDATA%\opencode-listen-stt\runtime
 ```
 
 Then re-run the installer.
@@ -81,7 +81,7 @@ Whisper is CPU-only upstream on Windows, so the Vulkan build comes from [whisper
 
 ## Configuration
 
-`~/.config/opencode/opencode-voice-99.json`:
+`~/.config/opencode/opencode-listen-stt.json`:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -107,7 +107,7 @@ The engine supports 99. `/voice-language` offers the common ones; any whisper.cp
 - **No devices listed** — check `ffmpeg -list_devices true -f dshow -i dummy`, and Windows *Settings → Privacy → Microphone*.
 - **Transcription is in the wrong language** — `/voice-language`, or set `language` in the config. Auto-detection reads Turkish as English.
 - **Slow** — `/voice-status` shows the backend. If it says `CPU` on an AMD or Intel GPU, the Vulkan runtime is missing or in the wrong folder.
-- **Diagnostics** — `%LOCALAPPDATA%\opencode-voice-99\voice-99.log`.
+- **Diagnostics** — `%LOCALAPPDATA%\opencode-listen-stt\listen-stt.log`.
 
 ## Development
 

@@ -1,5 +1,5 @@
 /**
- * Settings: built-in defaults, overridden by `~/.config/opencode/opencode-voice-99.json`,
+ * Settings: built-in defaults, overridden by `~/.config/opencode/opencode-listen-stt.json`,
  * overridden again by plugin options. Unknown or wrongly-typed values are
  * ignored so a typo in a settings file cannot stop the plugin loading.
  */
@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Backend } from "./backend.ts";
 
-export interface Voice99Config {
+export interface ListenSttConfig {
   ffmpeg: string;
   /** whisper.cpp install root, or "" to auto-detect. */
   runtime: string;
@@ -28,7 +28,7 @@ export interface Voice99Config {
   mic: string;
 }
 
-export const DEFAULTS: Voice99Config = {
+export const DEFAULTS: ListenSttConfig = {
   ffmpeg: "ffmpeg",
   runtime: "",
   model: "",
@@ -44,13 +44,13 @@ export const DEFAULTS: Voice99Config = {
 };
 
 export function configFilePath(): string {
-  if (process.env.OPENCODE_VOICE_99_CONFIG?.trim()) return process.env.OPENCODE_VOICE_99_CONFIG.trim();
+  if (process.env.OPENCODE_LISTEN_STT_CONFIG?.trim()) return process.env.OPENCODE_LISTEN_STT_CONFIG.trim();
   const xdg = process.env.XDG_CONFIG_HOME?.trim();
   const base = xdg ? path.join(xdg, "opencode") : path.join(os.homedir(), ".config", "opencode");
-  return path.join(base, "opencode-voice-99.json");
+  return path.join(base, "opencode-listen-stt.json");
 }
 
-export function readConfigFile(): Partial<Voice99Config> {
+export function readConfigFile(): Partial<ListenSttConfig> {
   try {
     const file = configFilePath();
     if (!fs.existsSync(file)) return {};
@@ -61,13 +61,13 @@ export function readConfigFile(): Partial<Voice99Config> {
   }
 }
 
-export function fromRecord(raw: Record<string, unknown>): Partial<Voice99Config> {
-  const out: Partial<Voice99Config> = {};
-  const str = (k: keyof Voice99Config) => {
+export function fromRecord(raw: Record<string, unknown>): Partial<ListenSttConfig> {
+  const out: Partial<ListenSttConfig> = {};
+  const str = (k: keyof ListenSttConfig) => {
     const v = raw[k];
     if (typeof v === "string" && v.trim()) out[k] = v.trim() as never;
   };
-  const num = (k: keyof Voice99Config, allowZero = false) => {
+  const num = (k: keyof ListenSttConfig, allowZero = false) => {
     const v = raw[k];
     const n = typeof v === "number" ? v : Number.parseInt(String(v ?? ""), 10);
     if (Number.isFinite(n) && (allowZero || n > 0)) out[k] = n as never;
@@ -99,7 +99,7 @@ function num(value: unknown, fallback: number, allowZero = false): number {
   return Number.isFinite(n) && (allowZero || n > 0) ? n : fallback;
 }
 
-export function configFromOptions(options: Readonly<Record<string, unknown>> | undefined): Voice99Config {
+export function configFromOptions(options: Readonly<Record<string, unknown>> | undefined): ListenSttConfig {
   const merged: Record<string, unknown> = { ...readConfigFile(), ...(options ?? {}) };
   return {
     ffmpeg: str(merged.ffmpeg, DEFAULTS.ffmpeg),

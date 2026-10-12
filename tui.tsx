@@ -1,11 +1,11 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
 import { createSignal } from "solid-js";
-import { configFromOptions, LANGUAGES, type Voice99Config } from "./lib/config.ts";
+import { configFromOptions, LANGUAGES, type ListenSttConfig } from "./lib/config.ts";
 import { WhisperServer } from "./lib/server.ts";
 import { listDevices, normalizeGain, pcmToWav, startRecording, type RecorderHandle } from "./lib/recorder.ts";
 
-const ID = "opencode-voice-99";
+const ID = "opencode-listen-stt";
 
 interface Settings {
   language: string;
@@ -24,7 +24,7 @@ const DEFAULTS: Settings = {
 export default Plugin.define({
   id: ID,
   async setup(context) {
-    const cfg: Voice99Config = configFromOptions({});
+    const cfg: ListenSttConfig = configFromOptions({});
     const [settings, save] = context.storage.store<Settings>(ID, {
       initial: {
         ...DEFAULTS,
@@ -221,7 +221,7 @@ export default Plugin.define({
         await navigator.clipboard.writeText(text);
         toast("Composer not focused — text copied to clipboard", "warning");
       } catch {
-        toast("Could not reach the composer. See voice-99.log", "error");
+        toast("Could not reach the composer. See listen-stt.log", "error");
       }
     };
 

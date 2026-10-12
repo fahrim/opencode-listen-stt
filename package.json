@@ -1,5 +1,5 @@
 {
-  "name": "opencode-voice-99",
+  "name": "opencode-listen-stt",
   "version": "0.1.0",
   "description": "Offline voice dictation for OpenCode V2 on Windows. whisper.cpp with 99 languages, GPU-accelerated on NVIDIA (CUDA), AMD and Intel (Vulkan).",
   "license": "MIT",

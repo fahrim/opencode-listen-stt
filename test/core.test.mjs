@@ -17,15 +17,15 @@ function sinePcm(amplitude, samples = 512) {
 
 function withConfig(contents, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "v99-"));
-  const file = path.join(dir, "opencode-voice-99.json");
+  const file = path.join(dir, "opencode-listen-stt.json");
   fs.writeFileSync(file, contents, "utf8");
-  const previous = process.env.OPENCODE_VOICE_99_CONFIG;
-  process.env.OPENCODE_VOICE_99_CONFIG = file;
+  const previous = process.env.OPENCODE_LISTEN_STT_CONFIG;
+  process.env.OPENCODE_LISTEN_STT_CONFIG = file;
   try {
     fn();
   } finally {
-    if (previous === undefined) delete process.env.OPENCODE_VOICE_99_CONFIG;
-    else process.env.OPENCODE_VOICE_99_CONFIG = previous;
+    if (previous === undefined) delete process.env.OPENCODE_LISTEN_STT_CONFIG;
+    else process.env.OPENCODE_LISTEN_STT_CONFIG = previous;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

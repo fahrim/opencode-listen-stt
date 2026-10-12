@@ -32,16 +32,16 @@ export interface RuntimePaths {
 
 export function defaultRuntimeRoot(): string {
   const local = process.env.LOCALAPPDATA ?? "";
-  if (local) return path.join(local, "opencode-voice-99");
-  return path.join(os.homedir(), ".opencode-voice-99");
+  if (local) return path.join(local, "opencode-listen-stt");
+  return path.join(os.homedir(), ".opencode-listen-stt");
 }
 
 /** Runtime locations to probe, most specific first. */
 export function runtimeCandidates(): RuntimePaths[] {
   const roots = [
-    process.env.OPENCODE_VOICE_99_ROOT,
+    process.env.OPENCODE_LISTEN_STT_ROOT,
     path.join(defaultRuntimeRoot(), "runtime"),
-    path.join(os.homedir(), ".cache", "opencode-voice-99", "runtime"),
+    path.join(os.homedir(), ".cache", "opencode-listen-stt", "runtime"),
   ].filter((v): v is string => Boolean(v));
 
   const out: RuntimePaths[] = [];

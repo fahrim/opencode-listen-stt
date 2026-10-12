@@ -10,7 +10,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { detectBackend, findRuntime, type BackendChoice, type RuntimePaths } from "./backend.ts";
-import type { Voice99Config } from "./config.ts";
+import type { ListenSttConfig } from "./config.ts";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -19,9 +19,9 @@ function sleep(ms: number): Promise<void> {
 /** Logs to the same place the STT plugin writes diagnostics. */
 function log(...parts: unknown[]): void {
   try {
-    const dir = path.join(process.env.LOCALAPPDATA ?? process.env.TMPDIR ?? ".", "opencode-voice-99");
+    const dir = path.join(process.env.LOCALAPPDATA ?? process.env.TMPDIR ?? ".", "opencode-listen-stt");
     fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, "voice-99.log"), `[${new Date().toISOString()}] ${parts.join(" ")}\n`);
+    fs.appendFileSync(path.join(dir, "listen-stt.log"), `[${new Date().toISOString()}] ${parts.join(" ")}\n`);
   } catch {
     // Diagnostics must never break dictation.
   }
@@ -34,10 +34,10 @@ export class WhisperServer {
   private starting?: Promise<void>;
   private choice?: BackendChoice;
 
-  private readonly cfg: Voice99Config;
+  private readonly cfg: ListenSttConfig;
   private readonly rt?: RuntimePaths;
 
-  constructor(cfg: Voice99Config) {
+  constructor(cfg: ListenSttConfig) {
     this.cfg = cfg;
     this.rt = findRuntime(this.cfg.runtime || undefined);
   }
@@ -92,13 +92,13 @@ export class WhisperServer {
   private async startServer(onStatus?: (message: string) => void): Promise<void> {
     if (!this.rt?.server || !fs.existsSync(this.rt.server)) {
       throw new Error(
-        "whisper-server.exe not found. Run the installer, or set `runtime` in opencode-voice-99.json.",
+        "whisper-server.exe not found. Run the installer, or set `runtime` in opencode-listen-stt.json.",
       );
     }
     const model = this.modelPath();
     if (!model || !fs.existsSync(model)) {
       throw new Error(
-        "No ggml model found. Download one, e.g. ggml-large-v3-turbo-q5_0.bin, and set `model` in opencode-voice-99.json.",
+        "No ggml model found. Download one, e.g. ggml-large-v3-turbo-q5_0.bin, and set `model` in opencode-listen-stt.json.",
       );
     }
 
@@ -123,7 +123,7 @@ export class WhisperServer {
 
     const deadline = Date.now() + 240_000;
     while (Date.now() < deadline) {
-      if (exited) throw new Error("whisper-server exited while starting — see voice-99.log");
+      if (exited) throw new Error("whisper-server exited while starting — see listen-stt.log");
       if (await this.ping()) {
         log("server ready");
         return;
