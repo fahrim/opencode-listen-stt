@@ -2,35 +2,61 @@
 
 Offline voice dictation for [OpenCode](https://opencode.ai) **V2** on Windows. Press a key, talk, and the text lands in your prompt.
 
-- **99 languages.** [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with `large-v3-turbo`.
+- **99 languages.** [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with `large-v3-turbo` — the model's full range, not a curated subset.
+- **The right language, first try.** The spoken language is pinned rather than guessed: more accurate, and roughly twice as fast.
 - **GPU accelerated.** CUDA on NVIDIA, Vulkan on AMD and Intel Arc. Detected automatically — you do not pick a backend.
-- **Fully offline.** No cloud, no API key, no account.
-- **Turkish works properly.** See [the note below](#the-turkish-problem) — this is the reason this plugin exists.
+- **Fully offline.** No cloud, no API key, no account. Audio never leaves your machine.
 
 > Not affiliated with the OpenCode team. Independent community plugin.
 
 ## Voice output
 
 This plugin only listens. To hear answers read aloud — Microsoft Edge neural
-voices, free, no API key, Turkish included — see
+voices, free, no API key, any language Edge supports — see
 [opencode-speak-tts](https://github.com/fahrim/opencode-speak-tts). The two are
 independent; either one works without the other.
 
-## Why not `opencode-voice`?
+## Why this exists
 
-Two reasons, both structural rather than fixable by configuration:
+Dictation plugins for OpenCode tend to arrive in one of two shapes. Either they
+target the older plugin API and do not load on OpenCode 2.x at all, or they ship
+a single specialised model covering roughly two dozen languages, which rules out
+everything outside that set. Neither is a mistake — they are limits of the
+approach, and neither is fixable from a settings file.
 
-1. **It is a V1 plugin.** OpenCode 2.x rejects V1 TUI modules with `Invalid V2 TUI plugin module`, and V1's `client.tui.appendPrompt()` has no V2 equivalent.
-2. **Its STT model cannot do Turkish.** It ships NVIDIA Parakeet, which supports 25 languages — Russian and German are among them, Turkish is not. Feeding it a Turkish recording produces `Merhaba Bubir Dikte Denemissidr. Lutvan Bujum Ned Orias.` Whisper transcribes the same audio as `Merhaba, bu bir dikte denemesidir. Lütfen bu cümleyi doğru yaz.`
+whisper.cpp covers 99 languages and runs on the GPU you already have. This
+plugin is built around that: nothing curated, and no setting left to chance.
 
-### The Turkish problem
+## The language problem
 
-Two separate traps, and only fixing one is not enough:
+Speech models have a quality cliff. A model can be excellent at some languages
+and unusable at others — and when it meets one it does not know, it does not say
+so. It returns confident, plausible, wrong text.
 
-- Parakeet does not know Turkish, so it guesses from a neighbouring phonology. No setting changes this — the model is the limit.
-- Whisper *does* know Turkish, but with no language hint it auto-detects, reads a Turkish recording as **English**, and returns Latin-script nonsense. Passing `language` explicitly fixes it, and also roughly halves transcription time.
+There are two separate causes, and they need different answers:
 
-This plugin always sends the language. `/voice-language` changes it.
+- **The model does not cover the language at all.** No setting helps. The model
+  is the limit, and the fix is a different model.
+- **The model covers it, but nothing told it which one to use.** Whisper reads a
+  Turkish recording as English when left to auto-detect. Naming the language
+  fixes it, and roughly halves the transcription time as well, because the model
+  stops testing hypotheses.
+
+The second is the quieter failure. A model with no coverage announces itself; a
+mis-detected one looks like the model is simply bad at your language, which
+sends people looking for a bigger download instead of a setting.
+
+Turkish is where this is easiest to show, because the failure has a distinctive
+shape. The same recording, three ways:
+
+| | What comes back |
+| --- | --- |
+| A model with no coverage of the language | `Merhaba Bubir Dikte Denemissidr. Lutvan Bujum Ned Orias.` |
+| Whisper, language left to auto-detect | Read as English, returned as Latin-script noise |
+| Whisper, language set to `tr` | `Merhaba, bu bir dikte denemesidir. Lütfen bu cümleyi doğru yaz.` |
+
+So this plugin always sends the language. The installer writes `tr`; set any
+other with `/voice-language`. That is the whole of it.
 
 ## Requirements
 
@@ -100,7 +126,7 @@ Whisper is CPU-only upstream on Windows, so the Vulkan build comes from [whisper
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `language` | `tr` | Spoken language passed to whisper. The installer writes `tr`. With no config file at all it falls back to `auto`, which is slower and mis-reads Turkish as English. |
+| `language` | `tr` | Spoken language passed to whisper. The installer writes `tr`; with no config file at all it falls back to `auto`, which is slower and guesses. |
 | `backend` | `auto` | `auto`, `cuda`, `vulkan` or `cpu` |
 | `model` | installer download | Full path to a ggml model file. The installer writes it; delete the key and the plugin still finds the model in `models/`. |
 | `runtime` | detected | whisper.cpp folder |
@@ -117,13 +143,20 @@ Unknown or wrongly-typed values are ignored rather than fatal, so a typo cannot 
 
 ## Languages
 
-The engine supports 99. `/voice-language` offers the common ones; any whisper.cpp code (`tr`, `en`, `de`, `fr`, `es`, `ru`, `ja`, …) works if you set it in the config file.
+whisper.cpp recognises 99. `/voice-language` lists the common ones under their
+English names; anything else takes its whisper code — `tr`, `en`, `de`, `fr`,
+`es`, `ru`, `uk`, `pl`, `ar`, `hi` and the rest — in the config file.
+
+`auto` is available, and it is the slowest and least reliable of the choices,
+because it is a guess. [The language problem](#the-language-problem) above is
+what a wrong guess looks like.
 
 ## Troubleshooting
 
 - **No devices listed** — check `ffmpeg -list_devices true -f dshow -i dummy`, and Windows *Settings → Privacy → Microphone*.
-- **Transcription is in the wrong language** — `/voice-language`, or set `language` in the config. Auto-detection reads Turkish as English.
+- **Transcription is in the wrong language** — `/voice-language`, or set `language` in the config. If it is already pinned, the audio may simply not be in that language.
 - **Slow** — `/voice-status` shows the backend. If it says `CPU` on an AMD or Intel GPU, the Vulkan runtime is missing or in the wrong folder.
+- **The result is plausible but wrong** — that is a mis-detected language, not a bad recording. Pin it; see [the language problem](#the-language-problem).
 - **Diagnostics** — `%LOCALAPPDATA%\opencode-listen-stt\listen-stt.log`.
 
 ## Development
