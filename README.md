@@ -72,7 +72,9 @@ git clone https://github.com/fahrim/opencode-listen-stt "$env:TEMP\opencode-list
 pwsh -NoProfile -File "$env:TEMP\opencode-listen-stt\install.ps1"
 ```
 
-The installer detects your GPU and points at the right whisper.cpp build.
+The installer does the whole job: it detects your GPU, installs the plugin,
+fetches the whisper.cpp runtime, downloads the model, and writes your settings
+file. Run it again at any time to repair an install.
 
 **On AMD or Intel, one extra step:** upstream publishes no Vulkan build for Windows, so the installer tells you where to get one:
 
@@ -86,12 +88,28 @@ Then re-run the installer.
 Restart OpenCode and check that it loaded:
 
 ```powershell
-opencode api get /api/plugin   # look for opencode-listen-stt, status "active"
+opencode plugin list    # opencode-listen-stt, showing a local path
 ```
 
 Press your hotkey. If no microphone has been chosen yet it asks on the first
 press, so there is nothing to configure before you start — `/voice-mic` is only
 there for changing it later.
+
+### Already run whisper.cpp?
+
+If you have a whisper.cpp runtime and a model already, skip the installer and
+take the plugin from OpenCode:
+
+```powershell
+opencode plugin add github:fahrim/opencode-listen-stt
+```
+
+Point `runtime` and `model` at what you have in `opencode-listen-stt.json`.
+`opencode plugin check` and `opencode plugin update` keep it current.
+
+Do not do both. The installer puts the plugin in `~/.config/opencode/plugins/`,
+and a local folder and a package of the same name are loaded separately — every
+command would end up registered twice.
 
 ## Usage
 
