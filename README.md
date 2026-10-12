@@ -187,4 +187,8 @@ npm test
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+This plugin drives [whisper.cpp](https://github.com/ggml-org/whisper.cpp), which
+is MIT-licensed and is not redistributed here — it is downloaded at install
+time. ggml models carry their own licences; check the model card.

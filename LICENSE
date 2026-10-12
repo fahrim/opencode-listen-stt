@@ -19,9 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This plugin drives whisper.cpp (https://github.com/ggml-org/whisper.cpp),
-which is MIT-licensed and is not redistributed here — it is downloaded at
-install time. ggml models carry their own licenses; check the model card.
