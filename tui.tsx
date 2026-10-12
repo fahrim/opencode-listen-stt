@@ -354,51 +354,50 @@ export default Plugin.define({
     }));
 
     // ---- recording UI ----------------------------------------------------
-    // On the row directly under the answer, above the composer: live level
-    // meter and elapsed time.
+    // The live meter and the three controls share one contribution, on the
+    // prompt footer.
+    //
+    // They used to be two claims, and the meter sat on `session.composer.top` -
+    // the same slot opencode-speak-tts uses for its playback row. Two layout
+    // contributions on one slot fight over the same node: when the meter
+    // re-rendered, the other plugin's row was left painted but outside the live
+    // scene, so its buttons could neither be clicked nor selected. One
+    // contribution, on a slot nothing else claims, keeps both plugins working.
     //
     // Written as explicit conditionals rather than <Show>: the slot renderer
     // runs outside a reactive owner, so <Show> never updates here.
-    const releaseMeter = context.ui.slot({
-      append: "session.composer.top",
-      render: () =>
-        state.recording ? (
-          <box height={1} flexShrink={0} flexDirection="row" paddingLeft={1} gap={1}>
-            <text fg="#e06c75">{`● REC ${formatElapsed(elapsed())}`}</text>
-            <text fg="#e06c75">{levels().map(bar).join("")}</text>
-          </box>
-        ) : state.working ? (
-          <box height={1} flexShrink={0} paddingLeft={1}>
-            <text fg="#e5c07b">transcribing…</text>
-          </box>
-        ) : (
-          <box height={0} />
-        ),
-    });
-
-    // In the prompt footer: the three controls, clickable.
     const releaseFooter = context.ui.slot({
-      append: "prompt.footer",
-      render: () =>
-        state.recording ? (
-          <box height={1} flexShrink={0} flexDirection="row" gap={2} paddingLeft={1}>
-            <text fg="#e5c07b" onMouseUp={() => void stopAndTranscribe(false)}>
-              ⏸ insert
-            </text>
-            <text fg="#7aa2f7" onMouseUp={() => void stopAndTranscribe(true)}>
-              ■ send
-            </text>
-            <text fg="#e06c75" onMouseUp={() => void toggle()}>
-              ✕ cancel
-            </text>
-          </box>
-        ) : (
-          <box height={0} />
-        ),
+      append: "prompt.footer.status",
+      render: () => {
+        if (state.recording) {
+          return (
+            <box height={1} flexShrink={0} flexDirection="row" gap={2} paddingLeft={1}>
+              <text fg="#e06c75">{`● REC ${formatElapsed(elapsed())}`}</text>
+              <text fg="#e06c75">{levels().map(bar).join("")}</text>
+              <text fg="#e5c07b" onMouseUp={() => void stopAndTranscribe(false)}>
+                ⏸ insert
+              </text>
+              <text fg="#7aa2f7" onMouseUp={() => void stopAndTranscribe(true)}>
+                ■ send
+              </text>
+              <text fg="#e06c75" onMouseUp={() => void toggle()}>
+                ✕ cancel
+              </text>
+            </box>
+          );
+        }
+        if (state.working) {
+          return (
+            <box height={1} flexShrink={0} paddingLeft={1}>
+              <text fg="#e5c07b">transcribing…</text>
+            </box>
+          );
+        }
+        return <box height={0} />;
+      },
     });
 
     return () => {
-      releaseMeter();
       releaseFooter();
       stopMeter();
       void recorder?.stop();
